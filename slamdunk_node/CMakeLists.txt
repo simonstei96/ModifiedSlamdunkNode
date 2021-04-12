@@ -10,6 +10,7 @@ add_compile_options(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   image_transport
+  cv_bridge
 )
 
 ## System dependencies are found with CMake's conventions

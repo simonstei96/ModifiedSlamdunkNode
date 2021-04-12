@@ -1,5 +1,8 @@
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
+#include <sensor_msgs/image_encodings.h>
+#include <cv_bridge/cv_bridge.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 //YAML Dateien einlesen
 #include "yaml-cpp/yaml.h"
@@ -11,6 +14,8 @@ namespace
     public:
         Context(ros::NodeHandle &n);//:m_rosNode(n){};
 
+        void setCameraInfo(sensor_msgs::CameraInfo &left, sensor_msgs::CameraInfo &right);
+
         //void setKalamosContext(kalamos::Context* c);
         void tick();
 
@@ -21,6 +26,8 @@ namespace
     private: //Objekte
         ros::NodeHandle& m_rosNode;
         //kalamos::Context* m_kaĺamosContext=nullptr;
+        sensor_msgs::CameraInfo m_leftCamInfo;
+        sensor_msgs::CameraInfo m_rightCamInfo;
 
         //Publisher
         //Linkes und rechtes Kamerabild(nicht rectified)
@@ -41,17 +48,48 @@ namespace
         
 
     }
+
+    void Context::setCameraInfo(sensor_msgs::CameraInfo &left, sensor_msgs::CameraInfo &right){
+        m_leftCamInfo = left;
+        m_rightCamInfo = right;
+        std::cout << m_leftCamInfo.width << std::endl;;
+    }
     /*
     void Context::setKalamosContext(kalamos::Context* c){
         m_kalamosContext=c;
     }*/
 
     void Context::tick(){
-        
+        publishStaticTfs();
     }
 
     void Context::publishStaticTfs(){
+        ros::Time time = ros::Time::now();
+        std::vector<geometry_msgs::TransformStamped> vecTranforms;
 
+        //Relation von base_link zur linken Kamera
+        {
+            geometry_msgs::TransformStamped transform;
+            //Header
+            transform.header.frame_id ="base_link";
+            transform.header.stamp = time;
+            transform.child_frame_id = "cam_left";
+
+            //Zur Liste hinzufuegen
+            vecTranforms.push_back(transform);
+        }
+
+        //Relation von base_link zur rechten Kamera
+        {
+            geometry_msgs::TransformStamped transform;
+            //Header
+            transform.header.frame_id ="base_link";
+            transform.header.stamp = time;
+            transform.child_frame_id = "cam_right";
+
+            //Zur Liste hinzufuegen
+            vecTranforms.push_back(transform);
+        }
     }
 
     /*
@@ -61,11 +99,35 @@ namespace
     }
 
     void leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
-        m_PubLeftRGB.publish();
+        cv_bridge::CvImage img_bridge;
+        img_bridge.image = rgbData;
+        img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
+        img_bridge.header.frame_id = "cam0";
+        img_bridge.header.stamp = ros::Time().fromNSec(ts);
+
+        sensor_msgs::CameraInfoPtr camInfo(m_leftCamInfo);
+
+        camInfo->width = rgbData.cols;
+        camInfo->height = rgbData.rows;
+        camInfo->header = img_bridge.header;
+
+        m_PubLeftRGB.publish(image_bridge.toImageMsgs(), camInfo);
     }
 
     void rightRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
-        m_PubRightRGB.publish()
+        cv_bridge::CvImage img_bridge;
+        img_bridge.image = rgbData;
+        img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
+        img_bridge.header.frame_id = "cam1";
+        img_bridge.header.stamp = ros::Time().fromNSec(ts);
+
+        sensor_msgs::CameraInfoPtr camInfo(m_rightCamInfo);
+
+        camInfo->width = rgbData.cols;
+        camInfo->height = rgbData.rows;
+        camInfo->header = img_bridge.header;
+
+        m_PubRightRGB.publish(image_bridge.toImageMsgs(), camInfo);
     }
     */
 
@@ -110,15 +172,16 @@ int main(int ac, char** av){
     
     Context context(n);
 
-    sensor_msgs::CameraInfo cam1;
-    sensor_msgs::CameraInfo cam2;
+    sensor_msgs::CameraInfo cam_left;
+    sensor_msgs::CameraInfo cam_right;
 
     //CameraInfo aus yaml Datei laden
     //yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_node/camera_data/left", context.leftInfo);
     //yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_node/camera_data/right", context.rightInfo);
-    yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/left", cam1);
-    yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/right", cam2);
+    yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/left", cam_left);
+    yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/right", cam_right);
 
+    context.setCameraInfo(cam_left, cam_right);
     //kalamos::Callbacks kalamosCbs;
     //kalamosCbs.period = 30;
 
