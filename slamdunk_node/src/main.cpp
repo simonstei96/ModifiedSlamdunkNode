@@ -3,6 +3,7 @@
 #include <sensor_msgs/image_encodings.h>
 #include <cv_bridge/cv_bridge.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 //YAML Dateien einlesen
 #include "yaml-cpp/yaml.h"
@@ -33,6 +34,8 @@ namespace
         //Linkes und rechtes Kamerabild(nicht rectified)
         image_transport::CameraPublisher m_PubLeftRGB;
         image_transport::CameraPublisher m_PubRightRGB;
+        //Aenderungen von Koordinateninformationen
+        tf2_ros::TransformBroadcaster m_transfromBroadcaster;
 
     private: //Methoden
         //void leftRGBPublish(cv:Mat const& rgbData, std::uint64_t ts);
@@ -49,10 +52,11 @@ namespace
 
     }
 
+    //Speichern der Infos aus der Kamera-Yaml-Dateien
     void Context::setCameraInfo(sensor_msgs::CameraInfo &left, sensor_msgs::CameraInfo &right){
         m_leftCamInfo = left;
         m_rightCamInfo = right;
-        std::cout << m_leftCamInfo.width << std::endl;;
+        
     }
     /*
     void Context::setKalamosContext(kalamos::Context* c){
@@ -75,6 +79,15 @@ namespace
             transform.header.stamp = time;
             transform.child_frame_id = "cam_left";
 
+            //Position und Rotation
+            transform.transform.translation.x =0;
+            transform.transform.translation.y = -0.1; //Abstand zum Mittelpunkt
+            transform.transform.translation.z = 0;
+            transform.transform.rotation.x = 0;
+            transform.transform.rotation.y = 0;
+            transform.transform.rotation.z = 0;
+            transform.transform.rotation.w = 1;
+
             //Zur Liste hinzufuegen
             vecTranforms.push_back(transform);
         }
@@ -87,9 +100,21 @@ namespace
             transform.header.stamp = time;
             transform.child_frame_id = "cam_right";
 
+            //Position und Rotation
+            transform.transform.translation.x = 0;
+            transform.transform.translation.y = 0.1;
+            transform.transform.translation.z = 0;
+            transform.transform.rotation.x = 0;
+            transform.transform.rotation.y = 0;
+            transform.transform.rotation.z = 0;
+            transform.transform.rotation.w = 1;
+
             //Zur Liste hinzufuegen
             vecTranforms.push_back(transform);
         }
+        //Publish Koordinaten
+        m_transfromBroadcaster.sendTransform(vecTranforms);
+        
     }
 
     /*
@@ -196,8 +221,9 @@ int main(int ac, char** av){
 
     ros::Rate looptime(1);
     
-    while(ros::ok()){
-        std::cout << "RUNNING" << std::endl;
+    while(n.ok()){
+        std::cout << "RUNNING: " << ros::Time::now() << std::endl;
+        context.tick();
         ros::spinOnce();
         looptime.sleep();
     }
