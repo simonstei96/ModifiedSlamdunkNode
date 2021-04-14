@@ -117,17 +117,19 @@ namespace
         
     }
 
-    /*
+    
     void onStereoYuvData(kalamos::StereoYuvData const& stereoYuvData){
-        leftRGBPublish(stereoYuvData.leftYuv, stereoYuvData.ts);
-        rightRGBPublish(stereoYuvData.rightYuv, stereoYuvData.ts);
+
+        cv:Size cropSize{640, 480};
+        leftRGBPublish(yuvToRgb(stereoYuvData.leftYuv, cropSize.width, cropSize.height), stereoYuvData.ts);
+        rightRGBPublish(yuvToRgb(stereoYuvData.rightYuv, cropSize.width, cropSize.height), stereoYuvData.ts);
     }
 
     void leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
-        img_bridge.header.frame_id = "cam0";
+        img_bridge.header.frame_id = "cam_left";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
         sensor_msgs::CameraInfoPtr camInfo(m_leftCamInfo);
@@ -143,7 +145,7 @@ namespace
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
-        img_bridge.header.frame_id = "cam1";
+        img_bridge.header.frame_id = "cam_right";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
         sensor_msgs::CameraInfoPtr camInfo(m_rightCamInfo);
@@ -154,7 +156,7 @@ namespace
 
         m_PubRightRGB.publish(image_bridge.toImageMsgs(), camInfo);
     }
-    */
+    
 
 }
 
@@ -201,24 +203,24 @@ int main(int ac, char** av){
     sensor_msgs::CameraInfo cam_right;
 
     //CameraInfo aus yaml Datei laden
-    //yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_node/camera_data/left", context.leftInfo);
-    //yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_node/camera_data/right", context.rightInfo);
-    yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/left", cam_left);
-    yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/right", cam_right);
+    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_node/camera_data/left", context.leftInfo);
+    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_node/camera_data/right", context.rightInfo);
+    //yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/left", cam_left);
+    //yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/right", cam_right);
 
     context.setCameraInfo(cam_left, cam_right);
-    //kalamos::Callbacks kalamosCbs;
-    //kalamosCbs.period = 30;
+    kalamos::Callbacks kalamosCbs;
+    kalamosCbs.period = 30;
 
-    //kalamosCbs.periodicCallback = std::bind(&Context::tick, &context);
-    //kalamosCbs.stereoYuvCallback = std::bind(&Context::onStereoYuvData, &context, std::placeholders::_1);
+    kalamosCbs.periodicCallback = std::bind(&Context::tick, &context);
+    kalamosCbs.stereoYuvCallback = std::bind(&Context::onStereoYuvData, &context, std::placeholders::_1);
 
-    //std::unique_ptr<kalamos::Context> kalamosContext = kalamos::init(kalamosCbs);
-    //if(kalamosContext!=nullptr){
-    //    context.setKalamosContext(kalamosContext.get());  
-    //      kalamosContext->run();  
-    //}
-
+    std::unique_ptr<kalamos::Context> kalamosContext = kalamos::init(kalamosCbs);
+    if(kalamosContext!=nullptr){
+        context.setKalamosContext(kalamosContext.get());  
+          kalamosContext->run();  
+    }
+/*
     ros::Rate looptime(1);
     
     while(n.ok()){
@@ -227,6 +229,6 @@ int main(int ac, char** av){
         ros::spinOnce();
         looptime.sleep();
     }
-
+*/
     return 0;
 }
