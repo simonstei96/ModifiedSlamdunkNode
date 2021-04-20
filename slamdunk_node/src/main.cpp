@@ -5,6 +5,9 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_broadcaster.h>
 
+#include "kalamos_context.hpp"
+#include "cvutils.hpp"
+
 //YAML Dateien einlesen
 #include "yaml-cpp/yaml.h"
 
@@ -17,16 +20,17 @@ namespace
 
         void setCameraInfo(sensor_msgs::CameraInfo &left, sensor_msgs::CameraInfo &right);
 
-        //void setKalamosContext(kalamos::Context* c);
+        void setKalamosContext(kalamos::Context* c);
         void tick();
 
         //Publishermethoden
         void publishStaticTfs();
-        //void onStereoYuvData(kalamos::StereoYuvData const& stereoYuvData);
+        void onStereoYuvData(kalamos::StereoYuvData const& stereoYuvData);
 
     private: //Objekte
         ros::NodeHandle& m_rosNode;
-        //kalamos::Context* m_kaĺamosContext=nullptr;
+        kalamos::Context* m_kalamosContext=nullptr;
+	std::unique_ptr<kalamos::ServiceHandle> m_captureHandle;
         sensor_msgs::CameraInfo m_leftCamInfo;
         sensor_msgs::CameraInfo m_rightCamInfo;
 
@@ -38,8 +42,11 @@ namespace
         tf2_ros::TransformBroadcaster m_transfromBroadcaster;
 
     private: //Methoden
-        //void leftRGBPublish(cv:Mat const& rgbData, std::uint64_t ts);
-        //void rightRGBPublish(cv:Mat const& rgbData, std::uint64_t ts);
+	//Kalamos
+	void setVideoSettings();
+
+        void leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts);
+        void rightRGBPublish(cv::Mat const& rgbData, std::uint64_t ts);
     };
 
     //Constructor mit Memberinitialisationlist
@@ -58,13 +65,30 @@ namespace
         m_rightCamInfo = right;
         
     }
-    /*
+    
     void Context::setKalamosContext(kalamos::Context* c){
         m_kalamosContext=c;
-    }*/
+
+	setVideoSettings();
+    }
+
+    void Context::setVideoSettings(){
+	if(m_kalamosContext==nullptr)
+		return;
+	
+	kalamos::VideoMode videoMode = kalamos::VideoMode::MODE_1280_960_30;
+	std::string videoModeStr("1280x960 @ 30 FPS");
+	ROS_INFO("Set video mode to %s", videoModeStr.c_str());
+	m_kalamosContext->setVideoMode(videoMode);
+    }
 
     void Context::tick(){
         publishStaticTfs();
+
+	//Maybe used for starting camera accessibility
+	if(!m_captureHandle){
+		m_captureHandle = m_kalamosContext->startService(kalamos::ServiceType::CAPTURE);
+	}
     }
 
     void Context::publishStaticTfs(){
@@ -118,43 +142,48 @@ namespace
     }
 
     
-    void onStereoYuvData(kalamos::StereoYuvData const& stereoYuvData){
+    void Context::onStereoYuvData(kalamos::StereoYuvData const& stereoYuvData){
 
-        cv:Size cropSize{640, 480};
+        cv::Size cropSize{640, 480};
         leftRGBPublish(yuvToRgb(stereoYuvData.leftYuv, cropSize.width, cropSize.height), stereoYuvData.ts);
         rightRGBPublish(yuvToRgb(stereoYuvData.rightYuv, cropSize.width, cropSize.height), stereoYuvData.ts);
     }
 
-    void leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
+    void Context::leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
+
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_left";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
-        sensor_msgs::CameraInfoPtr camInfo(m_leftCamInfo);
-
+        //sensor_msgs::CameraInfoPtr camInfo(&m_leftCamInfo);
+sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
         camInfo->width = rgbData.cols;
         camInfo->height = rgbData.rows;
         camInfo->header = img_bridge.header;
+	
+        m_PubLeftRGB.publish(img_bridge.toImageMsg(), camInfo);
 
-        m_PubLeftRGB.publish(image_bridge.toImageMsgs(), camInfo);
     }
 
-    void rightRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
+    void Context::rightRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
+
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_right";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
-        sensor_msgs::CameraInfoPtr camInfo(m_rightCamInfo);
+        //sensor_msgs::CameraInfoPtr camInfo(&m_rightCamInfo);
+sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
 
         camInfo->width = rgbData.cols;
         camInfo->height = rgbData.rows;
         camInfo->header = img_bridge.header;
 
-        m_PubRightRGB.publish(image_bridge.toImageMsgs(), camInfo);
+        m_PubRightRGB.publish(img_bridge.toImageMsg(), camInfo);
+
     }
     
 
@@ -165,7 +194,7 @@ void yamlToCameraInfo(std::string file, sensor_msgs::CameraInfo &camInfo)
 
     YAML::Node camera_info_yaml = YAML::LoadFile(file + ".yaml");
     //Werte aus Datei in Msg packen
-    //std::cout << "HIER: " << camera_info_yaml["image_width"] << std::endl;
+    
     
     camInfo.width = camera_info_yaml["image_width"].as<uint32_t>();
     camInfo.height = camera_info_yaml["image_height"].as<uint32_t>();
@@ -203,8 +232,8 @@ int main(int ac, char** av){
     sensor_msgs::CameraInfo cam_right;
 
     //CameraInfo aus yaml Datei laden
-    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_node/camera_data/left", context.leftInfo);
-    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_node/camera_data/right", context.rightInfo);
+    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_ros/slamdunk_node/camera_data/left", cam_left);
+    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_ros/slamdunk_node/camera_data/right", cam_right);
     //yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/left", cam_left);
     //yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/right", cam_right);
 
@@ -217,18 +246,12 @@ int main(int ac, char** av){
 
     std::unique_ptr<kalamos::Context> kalamosContext = kalamos::init(kalamosCbs);
     if(kalamosContext!=nullptr){
-        context.setKalamosContext(kalamosContext.get());  
-          kalamosContext->run();  
+std::cout << "1 \n" ;
+        context.setKalamosContext(kalamosContext.get()); 
+std::cout << "2 \n" ; 
+        kalamosContext->run();  
+std::cout << "3 \n" ;
     }
-/*
-    ros::Rate looptime(1);
-    
-    while(n.ok()){
-        std::cout << "RUNNING: " << ros::Time::now() << std::endl;
-        context.tick();
-        ros::spinOnce();
-        looptime.sleep();
-    }
-*/
+
     return 0;
 }
