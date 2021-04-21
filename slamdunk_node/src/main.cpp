@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/distortion_models.h>
 #include <cv_bridge/cv_bridge.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -26,12 +27,13 @@ namespace
         //Publishermethoden
         //Publishes statische Tfs
         void publishStaticTfs();
-        void onStereoYuvData(kalamos::StereoYuvData const& stereoYuvData);
+        void stereoImgCallback(kalamos::StereoYuvData const& stereoYuvData);
 
     private: //Objekte
         ros::NodeHandle& m_rosNode;
         kalamos::Context* m_kalamosContext=nullptr;
 	std::unique_ptr<kalamos::ServiceHandle> m_captureHandle;
+        //Kamerainfo aus Yaml-Datei
         sensor_msgs::CameraInfo m_leftCamInfo;
         sensor_msgs::CameraInfo m_rightCamInfo;
 
@@ -39,6 +41,9 @@ namespace
         //Linkes und rechtes Kamerabild(nicht rectified)
         image_transport::CameraPublisher m_PubLeftRGB;
         image_transport::CameraPublisher m_PubRightRGB;
+        //Linkes und rechtes Kamerabild(korrigiert/rectified)
+        image_transport::CameraPublisher m_PubLeftRGBRect;
+        image_transport::CameraPublisher m_PubRightRGBRect;
         //Aenderungen von Koordinateninformationen
         tf2_ros::TransformBroadcaster m_transfromBroadcaster;
 
@@ -46,15 +51,21 @@ namespace
 	    //Kalamos
 	    void setVideoSettings();
 
+        //Unrectified Kamerabilderpublishermethode
         void leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts);
         void rightRGBPublish(cv::Mat const& rgbData, std::uint64_t ts);
+        //Rectified Kamerabilderpublishermethode
+        void leftRGBRectPublish(cv::Mat const& rgbData, std::uint64_t ts);
+        void rightRGBRectPublish(cv::Mat const& rgbData, std::uint64_t ts);
     };
 
-    //Constructor mit Memberinitialisationlist
+    //Konstruktor mit Memberinitialisationlist
     Context::Context(ros::NodeHandle &n):
     m_rosNode(n),
     m_PubLeftRGB(image_transport::ImageTransport(n).advertiseCamera("left_rgb/image", 1)),
-    m_PubRightRGB(image_transport::ImageTransport(n).advertiseCamera("right_rgb/image", 1))
+    m_PubRightRGB(image_transport::ImageTransport(n).advertiseCamera("right_rgb/image", 1)),
+    m_PubLeftRGBRect(image_transport::ImageTransport(n).advertiseCamera("left_rgb_rect/image", 1)),
+    m_PubRightRGBRect(image_transport::ImageTransport(n).advertiseCamera("right_rgb_rect/image", 1))
     {
         
 
@@ -143,11 +154,26 @@ namespace
     }
 
     
-    void Context::onStereoYuvData(kalamos::StereoYuvData const& stereoYuvData){
-
+    void Context::stereoImgCallback(kalamos::StereoYuvData const& stereoYuvData){
+        //Kamerabildgroesse(wird reduziert diese)
         cv::Size cropSize{640, 480};
-        leftRGBPublish(yuvToRgb(stereoYuvData.leftYuv, cropSize.width, cropSize.height), stereoYuvData.ts);
-        rightRGBPublish(yuvToRgb(stereoYuvData.rightYuv, cropSize.width, cropSize.height), stereoYuvData.ts);
+        //Unrectified Kamerabilder Verarbeitung
+        //Yuv zu RGB umwandeln, Bildgroesse verkleinern
+        cv::Mat leftRGBFrame = yuvToRgb(stereoYuvData.leftYuv, cropSize.width, cropSize.height); 
+        cv::Mat rightRGBFrame = yuvToRgb(stereoYuvData.rightYuv, cropSize.width, cropSize.height);
+        //Publishermethode aufrufen
+        leftRGBPublish(leftRGB, stereoYuvData.ts);
+        rightRGBPublish(rightRGB, stereoYuvData.ts);
+        
+        //Korrigierte(rectified) Kamerabildern Verarbeitung
+        cv::Mat leftRGBRectFrame;
+        cv::Mat rightRGBRectFrame;
+        //Linkes und rechtes Frame korrigieren(Closed-source kalamos code)
+        m_kalamosContext->rectifyFrame(leftRGBFrame, leftRGBRectFrame);
+        m_kalamosContext->rectifyFrame(rightRGBFrame, rightRGBRectFrame);
+        //Publishermethode aufrufen
+        leftRGBRectPublish(leftRGBRectFrame, stereoYuvData.ts);
+        rightRGBRectPublish(rightRGBRectFrame, stereoYuvData.ts); 
     }
 
     void Context::leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
@@ -158,12 +184,13 @@ namespace
         img_bridge.header.frame_id = "cam_left";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
-        //sensor_msgs::CameraInfoPtr camInfo(&m_leftCamInfo);
-sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
+        sensor_msgs::CameraInfoPtr camInfo(&m_leftCamInfo);
+
         camInfo->width = rgbData.cols;
         camInfo->height = rgbData.rows;
         camInfo->header = img_bridge.header;
 	
+        //Hier wird sowohl das Frame als auch ein KameraInfo-Topic veroeffentlicht
         m_PubLeftRGB.publish(img_bridge.toImageMsg(), camInfo);
 
     }
@@ -176,15 +203,78 @@ sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
         img_bridge.header.frame_id = "cam_right";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
-        //sensor_msgs::CameraInfoPtr camInfo(&m_rightCamInfo);
-sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
+        sensor_msgs::CameraInfoPtr camInfo(&m_rightCamInfo);
+
 
         camInfo->width = rgbData.cols;
         camInfo->height = rgbData.rows;
         camInfo->header = img_bridge.header;
-
+        //Hier wird sowohl das Frame als auch ein KameraInfo-Topic veroeffentlicht
         m_PubRightRGB.publish(img_bridge.toImageMsg(), camInfo);
 
+    }
+
+    void Context::leftRGBRectPublish(cv::Mat const& rgbData, std::uint64_t ts){
+        cv_bridge::CvImage img_bridge;
+        img_bridge.image = rgbData;
+        img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
+        img_bridge.header.frame_id = "cam_left";
+        img_bridge.header.stamp = ros::Time().fromNSec(ts);
+
+        sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
+        camInfo->header = img_bridge.header;
+        camInfo->width = rgbData.cols;
+        camInfo->height = rgbData.rows;
+        camInfo->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
+        camInfo->D.resize(5);
+
+        kalamos::RectifiedFrameStaticProperties staticProps = m_kalamosContext->getLeftRectStaticProperties();
+
+        float fx = staticProps.fx;
+        float fy = staticProps.fy;
+        float cx = rgbData.cols / 2.0;
+        float cy = rgbData.rows / 2.0;
+
+        camInfo->P.fill(0);
+        camInfo->P[0] = fx;
+        camInfo->P[2] = cx;
+        camInfo->P[5] = fy;
+        camInfo->P[6] = cy;
+        camInfo->P[10] = 1.0;
+        //Hier wird sowohl das Frame als auch ein KameraInfo-Topic veroeffentlicht
+        m_PubLeftRGBRect.publish(img_bridge.toImageMsg(), camInfo);
+
+    }
+    
+    void Context::rightRGBRectPublish(cv::Mat const& rgbData, std::uint64_t ts){
+        cv_bridge::CvImage img_bridge;
+        img_bridge.image = rgbData;
+        img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
+        img_bridge.header.frame_id = "cam_right";
+        img_bridge.header.stamp = ros::Time().fromNSec(ts);
+
+        sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
+        camInfo->header = img_bridge.header;
+        camInfo->width = rgbData.cols;
+        camInfo->height = rgbData.rows;
+        camInfo->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
+        camInfo->D.resize(5);
+
+        kalamos::RectifiedFrameStaticProperties staticProps = m_kalamosContext->getLeftRectStaticProperties();
+
+        float fx = staticProps.fx;
+        float fy = staticProps.fy;
+        float cx = rgbData.cols / 2.0;
+        float cy = rgbData.rows / 2.0;
+
+        camInfo->P.fill(0);
+        camInfo->P[0] = fx;
+        camInfo->P[2] = cx;
+        camInfo->P[5] = fy;
+        camInfo->P[6] = cy;
+        camInfo->P[10] = 1.0;
+        //Hier wird sowohl das Frame als auch ein KameraInfo-Topic veroeffentlicht
+        m_PubRightRGB.publish(img_bridge.toImageMsg(), camInfo);
     }
     
 
@@ -232,17 +322,17 @@ int main(int ac, char** av){
     sensor_msgs::CameraInfo cam_left;
     sensor_msgs::CameraInfo cam_right;
 
-    //CameraInfo aus yaml Datei laden
+    //CameraInfo aus yaml Datei lesen
     yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_ros/slamdunk_node/camera_data/left", cam_left);
     yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_ros/slamdunk_node/camera_data/right", cam_right);
 
-
     context.setCameraInfo(cam_left, cam_right);
+
     kalamos::Callbacks kalamosCbs;
     kalamosCbs.period = 30;
 
     kalamosCbs.periodicCallback = std::bind(&Context::tick, &context);
-    kalamosCbs.stereoYuvCallback = std::bind(&Context::onStereoYuvData, &context, std::placeholders::_1);
+    kalamosCbs.stereoYuvCallback = std::bind(&Context::stereoImgCallback, &context, std::placeholders::_1);
 
     std::unique_ptr<kalamos::Context> kalamosContext = kalamos::init(kalamosCbs);
     if(kalamosContext!=nullptr){
