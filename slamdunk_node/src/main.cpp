@@ -24,6 +24,7 @@ namespace
         void tick();
 
         //Publishermethoden
+        //Publishes statische Tfs
         void publishStaticTfs();
         void onStereoYuvData(kalamos::StereoYuvData const& stereoYuvData);
 
@@ -42,8 +43,8 @@ namespace
         tf2_ros::TransformBroadcaster m_transfromBroadcaster;
 
     private: //Methoden
-	//Kalamos
-	void setVideoSettings();
+	    //Kalamos
+	    void setVideoSettings();
 
         void leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts);
         void rightRGBPublish(cv::Mat const& rgbData, std::uint64_t ts);
@@ -76,8 +77,8 @@ namespace
 	if(m_kalamosContext==nullptr)
 		return;
 	
-	kalamos::VideoMode videoMode = kalamos::VideoMode::MODE_1280_960_30;
-	std::string videoModeStr("1280x960 @ 30 FPS");
+	kalamos::VideoMode videoMode = kalamos::VideoMode::MODE_1500_1500_60;
+	std::string videoModeStr("1500x1500 @ 60 FPS");
 	ROS_INFO("Set video mode to %s", videoModeStr.c_str());
 	m_kalamosContext->setVideoMode(videoMode);
     }
@@ -85,7 +86,7 @@ namespace
     void Context::tick(){
         publishStaticTfs();
 
-	//Maybe used for starting camera accessibility
+	//Aktivieren der Kamerafuntionalität
 	if(!m_captureHandle){
 		m_captureHandle = m_kalamosContext->startService(kalamos::ServiceType::CAPTURE);
 	}
@@ -234,8 +235,7 @@ int main(int ac, char** av){
     //CameraInfo aus yaml Datei laden
     yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_ros/slamdunk_node/camera_data/left", cam_left);
     yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_ros/slamdunk_node/camera_data/right", cam_right);
-    //yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/left", cam_left);
-    //yamlToCameraInfo("/home/simon/Dokumente/ws_slamdunk/src/slamdunk_node/camera_data/right", cam_right);
+
 
     context.setCameraInfo(cam_left, cam_right);
     kalamos::Callbacks kalamosCbs;
@@ -246,11 +246,11 @@ int main(int ac, char** av){
 
     std::unique_ptr<kalamos::Context> kalamosContext = kalamos::init(kalamosCbs);
     if(kalamosContext!=nullptr){
-std::cout << "1 \n" ;
+
         context.setKalamosContext(kalamosContext.get()); 
-std::cout << "2 \n" ; 
+ 
         kalamosContext->run();  
-std::cout << "3 \n" ;
+
     }
 
     return 0;
