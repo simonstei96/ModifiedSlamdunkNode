@@ -156,7 +156,7 @@ namespace
     
     void Context::stereoImgCallback(kalamos::StereoYuvData const& stereoYuvData){
         //Kamerabildgroesse(wird reduziert diese)
-        cv::Size cropSize{640, 480};
+        cv::Size cropSize{1280, 720};
         //Unrectified Kamerabilder Verarbeitung
         //Yuv zu RGB umwandeln, Bildgroesse verkleinern
         cv::Mat leftRGBFrame = yuvToRgb(stereoYuvData.leftYuv, cropSize.width, cropSize.height); 
