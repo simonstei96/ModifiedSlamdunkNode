@@ -155,7 +155,7 @@ namespace
 
     
     void Context::stereoImgCallback(kalamos::StereoYuvData const& stereoYuvData){
-        //Kamerabildgroesse(wird reduziert diese)
+        //Kamerabildgroesse(wird auf diese reduziert)
         cv::Size cropSize{1280, 720};
         //Unrectified Kamerabilder Verarbeitung
         //Yuv zu RGB umwandeln, Bildgroesse verkleinern
@@ -184,7 +184,7 @@ namespace
         img_bridge.header.frame_id = "cam_left";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
-        sensor_msgs::CameraInfoPtr camInfo(&m_leftCamInfo);
+        sensor_msgs::CameraInfoPtr camInfo = boost::make_shared<sensor_msgs::CameraInfo>(m_leftCamInfo);
 
         camInfo->width = rgbData.cols;
         camInfo->height = rgbData.rows;
@@ -203,7 +203,7 @@ namespace
         img_bridge.header.frame_id = "cam_right";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
-        sensor_msgs::CameraInfoPtr camInfo(&m_rightCamInfo);
+        sensor_msgs::CameraInfoPtr camInfo = boost::make_shared<sensor_msgs::CameraInfo>(m_rightCamInfo);
 
 
         camInfo->width = rgbData.cols;
@@ -274,7 +274,7 @@ namespace
         camInfo->P[6] = cy;
         camInfo->P[10] = 1.0;
         //Hier wird sowohl das Frame als auch ein KameraInfo-Topic veroeffentlicht
-        m_PubRightRGB.publish(img_bridge.toImageMsg(), camInfo);
+        m_PubRightRGBRect.publish(img_bridge.toImageMsg(), camInfo);
     }
     
 
