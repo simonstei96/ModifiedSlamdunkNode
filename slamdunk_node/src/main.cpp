@@ -162,8 +162,8 @@ namespace
         cv::Mat leftRGBFrame = yuvToRgb(stereoYuvData.leftYuv, cropSize.width, cropSize.height); 
         cv::Mat rightRGBFrame = yuvToRgb(stereoYuvData.rightYuv, cropSize.width, cropSize.height);
         //Publishermethode aufrufen
-        leftRGBPublish(leftRGB, stereoYuvData.ts);
-        rightRGBPublish(rightRGB, stereoYuvData.ts);
+        leftRGBPublish(leftRGBFrame, stereoYuvData.ts);
+        rightRGBPublish(rightRGBFrame, stereoYuvData.ts);
         
         //Korrigierte(rectified) Kamerabildern Verarbeitung
         cv::Mat leftRGBRectFrame;
