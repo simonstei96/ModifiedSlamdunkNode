@@ -88,7 +88,7 @@ namespace
 	if(m_kalamosContext==nullptr)
 		return;
 	
-	kalamos::VideoMode videoMode = kalamos::VideoMode::MODE_1500_1500_60;
+	kalamos::VideoMode videoMode = kalamos::VideoMode::MODE_1280_960_30;
 	std::string videoModeStr("1500x1500 @ 60 FPS");
 	ROS_INFO("Set video mode to %s", videoModeStr.c_str());
 	m_kalamosContext->setVideoMode(videoMode);
@@ -155,8 +155,8 @@ namespace
 
     
     void Context::stereoImgCallback(kalamos::StereoYuvData const& stereoYuvData){
-        //Kamerabildgroesse(wird auf diese reduziert)
-        cv::Size cropSize{1280, 720};
+        //Kamerabildgroesse(wird reduziert diese)
+        cv::Size cropSize{640, 480};
         //Unrectified Kamerabilder Verarbeitung
         //Yuv zu RGB umwandeln, Bildgroesse verkleinern
         cv::Mat leftRGBFrame = yuvToRgb(stereoYuvData.leftYuv, cropSize.width, cropSize.height); 
@@ -166,14 +166,17 @@ namespace
         rightRGBPublish(rightRGBFrame, stereoYuvData.ts);
         
         //Korrigierte(rectified) Kamerabildern Verarbeitung
-        cv::Mat leftRGBRectFrame;
-        cv::Mat rightRGBRectFrame;
+	    cv::Size rectCrop{672,672};
+        leftRGBFrame = yuvToRgb(stereoYuvData.leftYuv, rectCrop.width, rectCrop.height); 
+        rightRGBFrame= yuvToRgb(stereoYuvData.rightYuv, rectCrop.width, rectCrop.height);
         //Linkes und rechtes Frame korrigieren(Closed-source kalamos code)
+	    cv::Mat leftRGBRectFrame;
+	    cv::Mat rightRGBRectFrame;
         m_kalamosContext->rectifyFrame(leftRGBFrame, leftRGBRectFrame);
         m_kalamosContext->rectifyFrame(rightRGBFrame, rightRGBRectFrame);
         //Publishermethode aufrufen
         leftRGBRectPublish(leftRGBRectFrame, stereoYuvData.ts);
-        rightRGBRectPublish(rightRGBRectFrame, stereoYuvData.ts); 
+        rightRGBRectPublish(rightRGBRectFrame, stereoYuvData.ts);
     }
 
     void Context::leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
