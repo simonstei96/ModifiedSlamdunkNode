@@ -106,7 +106,28 @@ namespace
     void Context::publishStaticTfs(){
         ros::Time time = ros::Time::now();
         std::vector<geometry_msgs::TransformStamped> vecTranforms;
+        //Test: Odometry Probleme wenn zwei TFs existieren
+        //Relation von base_link zu den Kameras
+        {
+            geometry_msgs::TransformStamped transform;
+            //Header
+            transform.header.frame_id ="base_link";
+            transform.header.stamp = time;
+            transform.child_frame_id = "cam_link";
 
+            //Position und Rotation
+            transform.transform.translation.x =0;
+            transform.transform.translation.y = 0; 
+            transform.transform.translation.z = 0;
+            transform.transform.rotation.x = 0;
+            transform.transform.rotation.y = 0;
+            transform.transform.rotation.z = 0;
+            transform.transform.rotation.w = 1;
+
+            //Zur Liste hinzufuegen
+            vecTranforms.push_back(transform);
+        }
+/*
         //Relation von base_link zur linken Kamera
         {
             geometry_msgs::TransformStamped transform;
@@ -148,6 +169,7 @@ namespace
             //Zur Liste hinzufuegen
             vecTranforms.push_back(transform);
         }
+*/
         //Publish Koordinaten
         m_transfromBroadcaster.sendTransform(vecTranforms);
         
@@ -184,7 +206,7 @@ namespace
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
-        img_bridge.header.frame_id = "cam_left";
+        img_bridge.header.frame_id = "cam_link";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
         sensor_msgs::CameraInfoPtr camInfo = boost::make_shared<sensor_msgs::CameraInfo>(m_leftCamInfo);
@@ -203,7 +225,7 @@ namespace
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
-        img_bridge.header.frame_id = "cam_right";
+        img_bridge.header.frame_id = "cam_link";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
         sensor_msgs::CameraInfoPtr camInfo = boost::make_shared<sensor_msgs::CameraInfo>(m_rightCamInfo);
@@ -221,7 +243,7 @@ namespace
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
-        img_bridge.header.frame_id = "cam_left";
+        img_bridge.header.frame_id = "cam_link";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
         sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
@@ -253,7 +275,7 @@ namespace
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
-        img_bridge.header.frame_id = "cam_right";
+        img_bridge.header.frame_id = "cam_link";
         img_bridge.header.stamp = ros::Time().fromNSec(ts);
 
         sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
