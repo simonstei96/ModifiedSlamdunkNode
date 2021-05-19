@@ -52,11 +52,11 @@ namespace
 	    void setVideoSettings();
 
         //Unrectified Kamerabilderpublishermethode
-        void leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts);
-        void rightRGBPublish(cv::Mat const& rgbData, std::uint64_t ts);
+        void leftRGBPublish(cv::Mat const& rgbData, ros::Time const& timestamp);
+        void rightRGBPublish(cv::Mat const& rgbData, ros::Time const& timestamp);
         //Rectified Kamerabilderpublishermethode
-        void leftRGBRectPublish(cv::Mat const& rgbData, std::uint64_t ts);
-        void rightRGBRectPublish(cv::Mat const& rgbData, std::uint64_t ts);
+        void leftRGBRectPublish(cv::Mat const& rgbData, ros::Time const& timestamp);
+        void rightRGBRectPublish(cv::Mat const& rgbData, ros::Time const& timestamp);
     };
 
     //Konstruktor mit Memberinitialisationlist
@@ -119,10 +119,15 @@ namespace
             transform.transform.translation.x =0;
             transform.transform.translation.y = 0; 
             transform.transform.translation.z = 0;
-            transform.transform.rotation.x = 0;
-            transform.transform.rotation.y = 0;
-            transform.transform.rotation.z = 0;
-            transform.transform.rotation.w = 1;
+            tf2::Quaternion rotation;
+            double yaw=-M_PI/2.0;
+            double pitch=0;
+            double roll=-M_PI/2.0;
+            rotation.setRPY(roll,pitch,yaw);
+            transform.transform.rotation.x = rotation.x();
+            transform.transform.rotation.y = rotation.y();
+            transform.transform.rotation.z = rotation.z();
+            transform.transform.rotation.w = rotation.w();
 
             //Zur Liste hinzufuegen
             vecTranforms.push_back(transform);
@@ -177,6 +182,7 @@ namespace
 
     
     void Context::stereoImgCallback(kalamos::StereoYuvData const& stereoYuvData){
+        ros::Time curTimestamp = ros::Time::now();
         //Kamerabildgroesse(wird reduziert diese)
         cv::Size cropSize{640, 480};
         //Unrectified Kamerabilder Verarbeitung
@@ -184,8 +190,8 @@ namespace
         cv::Mat leftRGBFrame = yuvToRgb(stereoYuvData.leftYuv, cropSize.width, cropSize.height); 
         cv::Mat rightRGBFrame = yuvToRgb(stereoYuvData.rightYuv, cropSize.width, cropSize.height);
         //Publishermethode aufrufen
-        leftRGBPublish(leftRGBFrame, stereoYuvData.ts);
-        rightRGBPublish(rightRGBFrame, stereoYuvData.ts);
+        leftRGBPublish(leftRGBFrame, curTimestamp);
+        rightRGBPublish(rightRGBFrame, curTimestamp);
         
         //Korrigierte(rectified) Kamerabildern Verarbeitung
 	    cv::Size rectCrop{672,672};
@@ -197,17 +203,17 @@ namespace
         m_kalamosContext->rectifyFrame(leftRGBFrame, leftRGBRectFrame);
         m_kalamosContext->rectifyFrame(rightRGBFrame, rightRGBRectFrame);
         //Publishermethode aufrufen
-        leftRGBRectPublish(leftRGBRectFrame, stereoYuvData.ts);
-        rightRGBRectPublish(rightRGBRectFrame, stereoYuvData.ts);
+        leftRGBRectPublish(leftRGBRectFrame, curTimestamp);
+        rightRGBRectPublish(rightRGBRectFrame, curTimestamp);
     }
 
-    void Context::leftRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
+    void Context::leftRGBPublish(cv::Mat const& rgbData, ros::Time const& timestamp){
 
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_link";
-        img_bridge.header.stamp = ros::Time().fromNSec(ts);
+        img_bridge.header.stamp = timestamp
 
         sensor_msgs::CameraInfoPtr camInfo = boost::make_shared<sensor_msgs::CameraInfo>(m_leftCamInfo);
 
@@ -220,13 +226,13 @@ namespace
 
     }
 
-    void Context::rightRGBPublish(cv::Mat const& rgbData, std::uint64_t ts){
+    void Context::rightRGBPublish(cv::Mat const& rgbData, ros::Time const& timestamp){
 
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_link";
-        img_bridge.header.stamp = ros::Time().fromNSec(ts);
+        img_bridge.header.stamp = timestamp
 
         sensor_msgs::CameraInfoPtr camInfo = boost::make_shared<sensor_msgs::CameraInfo>(m_rightCamInfo);
 
@@ -239,12 +245,12 @@ namespace
 
     }
 
-    void Context::leftRGBRectPublish(cv::Mat const& rgbData, std::uint64_t ts){
+    void Context::leftRGBRectPublish(cv::Mat const& rgbData, ros::Time const& timestamp){
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_link";
-        img_bridge.header.stamp = ros::Time().fromNSec(ts);
+        img_bridge.header.stamp = timestamp
 
         sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
         camInfo->header = img_bridge.header;
@@ -271,12 +277,12 @@ namespace
 
     }
     
-    void Context::rightRGBRectPublish(cv::Mat const& rgbData, std::uint64_t ts){
+    void Context::rightRGBRectPublish(cv::Mat const& rgbData, ros::Time const& timestamp){
         cv_bridge::CvImage img_bridge;
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_link";
-        img_bridge.header.stamp = ros::Time().fromNSec(ts);
+        img_bridge.header.stamp = timestamp
 
         sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
         camInfo->header = img_bridge.header;
