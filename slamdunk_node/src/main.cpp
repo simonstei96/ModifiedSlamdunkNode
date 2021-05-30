@@ -171,7 +171,7 @@ namespace
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_link";
-        img_bridge.header.stamp = timestamp
+        img_bridge.header.stamp = timestamp;
 
         sensor_msgs::CameraInfoPtr camInfo = boost::make_shared<sensor_msgs::CameraInfo>(m_leftCamInfo);
 
@@ -190,7 +190,7 @@ namespace
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_link";
-        img_bridge.header.stamp = timestamp
+        img_bridge.header.stamp = timestamp;
 
         sensor_msgs::CameraInfoPtr camInfo = boost::make_shared<sensor_msgs::CameraInfo>(m_rightCamInfo);
 
@@ -208,7 +208,7 @@ namespace
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_link";
-        img_bridge.header.stamp = timestamp
+        img_bridge.header.stamp = timestamp;
 
         sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
         camInfo->header = img_bridge.header;
@@ -240,7 +240,7 @@ namespace
         img_bridge.image = rgbData;
         img_bridge.encoding = sensor_msgs::image_encodings::RGB8;
         img_bridge.header.frame_id = "cam_link";
-        img_bridge.header.stamp = timestamp
+        img_bridge.header.stamp = timestamp;
 
         sensor_msgs::CameraInfoPtr camInfo(new sensor_msgs::CameraInfo());
         camInfo->header = img_bridge.header;
@@ -312,8 +312,8 @@ int main(int ac, char** av){
     sensor_msgs::CameraInfo cam_right;
 
     //CameraInfo aus yaml Datei lesen
-    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_ros/slamdunk_node/camera_data/left", cam_left);
-    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/slamdunk_ros/slamdunk_node/camera_data/right", cam_right);
+    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/ModifiedSlamdunkNode/slamdunk_node/camera_data/left", cam_left);
+    yamlToCameraInfo("/home/slamdunk/ws_slamdunk/src/ModifiedSlamdunkNode/slamdunk_node/camera_data/right", cam_right);
 
     context.setCameraInfo(cam_left, cam_right);
 
