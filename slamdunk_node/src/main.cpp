@@ -89,7 +89,7 @@ namespace
 		return;
 	
 	kalamos::VideoMode videoMode = kalamos::VideoMode::MODE_1280_960_30;
-	std::string videoModeStr("1500x1500 @ 60 FPS");
+	std::string videoModeStr("1280x960 @ 30 FPS");
 	ROS_INFO("Set video mode to %s", videoModeStr.c_str());
 	m_kalamosContext->setVideoMode(videoMode);
     }
@@ -152,17 +152,14 @@ namespace
         rightRGBPublish(rightRGBFrame, curTimestamp);
         
         //Korrigierte(rectified) Kamerabildern Verarbeitung
-	    cv::Size rectCrop{672,672};
-        leftRGBFrame = yuvToRgb(stereoYuvData.leftYuv, rectCrop.width, rectCrop.height); 
-        rightRGBFrame= yuvToRgb(stereoYuvData.rightYuv, rectCrop.width, rectCrop.height);
-        //Linkes und rechtes Frame korrigieren(Closed-source kalamos code)
-	    cv::Mat leftRGBRectFrame;
-	    cv::Mat rightRGBRectFrame;
-        m_kalamosContext->rectifyFrame(leftRGBFrame, leftRGBRectFrame);
-        m_kalamosContext->rectifyFrame(rightRGBFrame, rightRGBRectFrame);
-        //Publishermethode aufrufen
-        leftRGBRectPublish(leftRGBRectFrame, curTimestamp);
+	    cv::Rect rectDimensions(80,0,480,480);
+        cv::Mat rectFrame;
+        //Linkes und rechtes Frame korrigieren und publishen(Closed-source kalamos code)
+        m_kalamosContext->rectifyFrame(leftRGBFrame(rectDimensions), rectFrame);
+        leftRGBRectPublish(rectFrame, curTimestamp);
+        m_kalamosContext->rectifyFrame(rightRGBFrame(rectDimensions), rectFrame);
         rightRGBRectPublish(rightRGBRectFrame, curTimestamp);
+
     }
 
     void Context::leftRGBPublish(cv::Mat const& rgbData, ros::Time const& timestamp){
@@ -318,7 +315,7 @@ int main(int ac, char** av){
     context.setCameraInfo(cam_left, cam_right);
 
     kalamos::Callbacks kalamosCbs;
-    kalamosCbs.period = 30;
+    kalamosCbs.period = 60; //Affects call of periodicCallback function(call every X ms)
 
     kalamosCbs.periodicCallback = std::bind(&Context::tick, &context);
     kalamosCbs.stereoYuvCallback = std::bind(&Context::stereoImgCallback, &context, std::placeholders::_1);
